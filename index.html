@@ -921,7 +921,7 @@ function usePage(pg) {
   duo.pageFlash[pg] = 1;
   if (duo.pages.size >= PAGES.length && !duo.furiQueued) {
     duo.furiQueued = true;
-    later(.9, startFurioso);
+    duo.furiAt = elapsed + .9;
   }
 }
 
@@ -1691,6 +1691,9 @@ function updateDuo(dt) {
   duo.a = Math.max(0, duo.a - dt * 2);
   duo.weaponT = Math.max(0, duo.weaponT - dt);
   duo.comboT = Math.max(0, duo.comboT - dt);
+  if (duo.furiQueued && !duo.furi && !script && elapsed >= (duo.furiAt || 0)) {
+    startFurioso();
+  }
   for (const l of laters) {
     l.t -= dt;
     if (l.t <= 0 && !l.done) {
@@ -3041,6 +3044,9 @@ function skipScript() {
   if (bossKey === "spider" && spider.laev) {
     spider.laev = null;
     hazards = hazards.filter(h => !h.laev);
+  }
+  if (bossKey === "spider") {
+    spider.seals = Math.max(spider.seals, clamp(curPhase - 3, 0, 3));
   }
 }
 
@@ -6605,10 +6611,12 @@ function drawHud() {
   ctx.font = '500 16px "IBM Plex Mono", monospace';
   ctx.textAlign = "right";
   ctx.fillStyle = COLOR.ink;
-  ctx.fillText(Math.max(0, CLEAR_TIME - elapsed).toFixed(1) + "s", W - 24, 36);
-  ctx.fillStyle = COLOR.dim;
-  ctx.font = '500 12px "IBM Plex Mono", monospace';
-  ctx.fillText("PHASE " + phase(), W - 24, 54);
+  if (state !== "menu") {
+    ctx.fillText(Math.max(0, CLEAR_TIME - elapsed).toFixed(1) + "s", W - 24, 36);
+    ctx.fillStyle = COLOR.dim;
+    ctx.font = '500 12px "IBM Plex Mono", monospace';
+    ctx.fillText("PHASE " + phase(), W - 24, 54);
+  }
   if (script && state === "play") {
     ctx.textAlign = "center";
     ctx.fillStyle = COLOR.dim;
@@ -9342,7 +9350,7 @@ function useEye(n) {
   spider.eyeFlash = 1;
   if (spider.eye <= 0 && !spider.overheatQueued) {
     spider.overheatQueued = true;
-    later(1.4, startOverheat);
+    spider.overheatAt = elapsed + 1.4;
   }
   return had;
 }
@@ -9863,10 +9871,7 @@ function startTibia() {
       hazards.push(h);
     }
   });
-  later(3.8, () => {
-    spider.tibia = null;
-    nextPatternAt = elapsed + .6;
-  });
+  spider.tibiaEnd = elapsed + 3.8;
 }
 
 const LAEV_C = {
@@ -10435,9 +10440,16 @@ function updateLaevUlt(dt) {
   if (U.kind === "stab" && U.t >= U.end) {
     spider.lu = null;
   }
+  if (U.kind === "exec" && !U.thrown && U.t > 7.2 && !spider.lt) {
+    startLaevThrow();
+  }
   if (U.kind === "exec" && U.thrown && !spider.lt) {
     spider.lu = null;
     FATHERS.middle.skillT = .6;
+  }
+  if (U.t > 16) {
+    spider.lu = null;
+    spider.lt = null;
   }
 }
 
@@ -11695,6 +11707,13 @@ function updateSpider(dt) {
   }
   updateOverheat(dt);
   updatePrecogs(dt);
+  if (spider.overheatQueued && elapsed >= (spider.overheatAt || 0) && !spiderUltBusy() && !script) {
+    startOverheat();
+  }
+  if (spider.tibia && elapsed >= (spider.tibiaEnd || 0)) {
+    spider.tibia = null;
+    nextPatternAt = elapsed + .6;
+  }
   const FIN = {
     1: startDisposal,
     3: () => {
